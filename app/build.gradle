@@ -1,0 +1,81 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 23
+    buildToolsVersion '23.0.2'
+    defaultConfig {
+        applicationId "com.meiyou.maindextestdemo"
+        minSdkVersion 14
+        targetSdkVersion 22
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        multiDexEnabled = true
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    compile 'com.android.support:multidex:1.0.0'
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
+        exclude group: 'com.android.support', module: 'support-annotations'
+    })
+    compile 'com.android.support.constraint:constraint-layout:1.0.0-beta2'
+    testCompile 'junit:junit:4.12'
+
+    compile "com.google.android.gms:play-services-ads:9.2.0"
+}
+
+afterEvaluate {
+    tasks.matching {
+        it.name.startsWith('dex')
+    }.each { dx ->
+        if (project.android.defaultConfig.multiDexEnabled) {
+            if (dx.additionalParameters == null) {
+                dx.additionalParameters = []
+            }
+            dx.additionalParameters += '--minimal-main-dex'
+            // for test multidex dex , here set max idx 10000, this apk total methods is about 22251.
+            dx.additionalParameters += '--set-max-idx-number=1000'
+            dx.additionalParameters += '--multi-dex'
+        }
+    }
+}
+afterEvaluate {
+    android.applicationVariants.each {
+        variant ->
+            def collectTask = tasks.findByName("collect${variant.name.capitalize()}MultiDexComponents")//collectZroTestDebugMultiDexComponents
+            if (collectTask != null) {
+
+                List<Action<? super Task>> list = new ArrayList<>()
+                list.add(new Action<Task>() {
+                    @Override
+                    void execute(Task task) {
+                        println "collect${variant.name.capitalize()}MultiDexComponents action execute!---------XXXXXXX mini main dex生效了!!!!$projectDir"
+                        def dir = new File("$projectDir/build/intermediates/multi-dex/${variant.dirName}");
+                        if (!dir.exists()) {
+                            println "$dir 不存在,进行创建"
+                            dir.mkdirs()
+                        }
+                        def manifestkeep = new File(dir.getAbsolutePath() + "/manifest_keep.txt")
+                        manifestkeep.delete()
+                        manifestkeep.createNewFile()
+                        println "先删除,后创建manifest_keep"
+                        def backManifestListFile = new File("$projectDir/manifest_keep.txt")
+                        backManifestListFile.eachLine {
+                            line ->
+                                manifestkeep << line << '\n'
+                        }
+                    }
+                })
+                collectTask.setActions(list)
+            }
+
+    }
+}
